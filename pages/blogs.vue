@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import type { Post } from "~/types";
 import { debounce } from "lodash";
+const useSearchText = useCookie("searchText");
 
 const runtimeConfig = useRuntimeConfig();
 
@@ -21,19 +22,22 @@ const {
   data: postsData,
   pending: postsPending,
   error: postsError,
-} = useFetch<Post>(`${runtimeConfig.public.apiBase}posts`);
+} = useFetch<Post>(`${runtimeConfig.public.apiBase}posts` , {server: true});
 
 const {
   data: photosData,
   pending: photosPending,
   error: photosError,
-} = useFetch<any>(`${runtimeConfig.public.apiBase}photos`);
+} = useFetch<any>(`${runtimeConfig.public.apiBase}photos` , {server: true});
 
 const pending = computed(() => postsPending.value || photosPending.value);
 const error = computed(() => postsError.value || photosError.value);
 
 posts.value = postsData.value || [];
 photos.value = photosData.value || [];
+
+console.log(postsData.value , photosData.value);
+
 
 const getImageUrl = (postId: number) => {
   const photo = photos.value.find((photo) => photo.id === postId);
@@ -43,8 +47,9 @@ const getImageUrl = (postId: number) => {
 const updateSearchTerm = debounce(() => {
   isTyping.value = false; // set is typing to false
   delayedSearchTerm.value = searchTerm.value;
-  // set the search term in localStorage
-  localStorage.setItem("searchTerm", delayedSearchTerm.value);
+  // set the search term in cookie
+  useSearchText.value = delayedSearchTerm.value;
+  // localStorage.setItem("searchTerm", delayedSearchTerm.value);
 }, 1000);
 
 watch(searchTerm, () => {
@@ -53,7 +58,7 @@ watch(searchTerm, () => {
 });
 
 onMounted(() => {
-  const savedSearchTerm = localStorage.getItem("searchTerm");
+  const savedSearchTerm = useSearchText.value;
   console.log(savedSearchTerm);
 
   if (savedSearchTerm) {
