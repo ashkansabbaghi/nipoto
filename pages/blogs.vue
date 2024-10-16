@@ -1,5 +1,7 @@
 <script lang="ts" setup>
 import type { Post } from "~/types";
+import { debounce } from "lodash";
+
 const runtimeConfig = useRuntimeConfig();
 
 definePageMeta({
@@ -11,64 +13,128 @@ definePageMeta({
 const posts = ref<Post[]>([]);
 const photos = ref<any[]>([]);
 const searchTerm = ref<string>("");
+const delayedSearchTerm = ref<string>("");
+const isTyping = ref<boolean>(false);
 
 //fetch data
-const fetchData = async () => {
-  try {
-    const [postsResponse, photosResponse] = await Promise.all([
-      $fetch<Post[]>(`${runtimeConfig.public.apiBase}posts`),
-      $fetch<string[]>(`${runtimeConfig.public.apiBase}photos`),
-    ]);
-    [posts.value, photos.value] = [postsResponse, photosResponse]; // set data
-  } catch (error) {
-    console.error("Error fetching data:", error);
-  }
-};
+const {
+  data: postsData,
+  pending: postsPending,
+  error: postsError,
+} = useFetch<Post>(`${runtimeConfig.public.apiBase}posts`);
+
+const {
+  data: photosData,
+  pending: photosPending,
+  error: photosError,
+} = useFetch<any>(`${runtimeConfig.public.apiBase}photos`);
+
+const pending = computed(() => postsPending.value || photosPending.value);
+const error = computed(() => postsError.value || photosError.value);
+
+posts.value = postsData.value || [];
+photos.value = photosData.value || [];
+
 const getImageUrl = (postId: number) => {
   const photo = photos.value.find((photo) => photo.id === postId);
   return photo?.url ?? "";
 };
 
+const updateSearchTerm = debounce(() => {
+  isTyping.value = false; // set is typing to false
+  delayedSearchTerm.value = searchTerm.value;
+  // set the search term in localStorage
+  localStorage.setItem("searchTerm", delayedSearchTerm.value);
+}, 1000);
+
+watch(searchTerm, () => {
+  isTyping.value = true; //  set is typing to true
+  updateSearchTerm();
+});
+
 onMounted(() => {
   const savedSearchTerm = localStorage.getItem("searchTerm");
   console.log(savedSearchTerm);
-  
+
   if (savedSearchTerm) {
     searchTerm.value = savedSearchTerm;
   }
-  fetchData();
 });
 
 const filteredPosts = computed(() => {
   return posts.value.filter(
     (post) =>
-      post.title.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-      post.body.toLowerCase().includes(searchTerm.value.toLowerCase())
+      post.title
+        .toLowerCase()
+        .includes(delayedSearchTerm.value.toLowerCase()) ||
+      post.body.toLowerCase().includes(delayedSearchTerm.value.toLowerCase())
   );
 });
+
+const highlightText = (text: string) => {
+  if (!searchTerm.value) return text;
+  const search = new RegExp(`(${searchTerm.value})`, "gi");
+  return text.replace(search, '<strong class="text-red-800">$1</strong>');
+};
 </script>
 
 <template>
   <div class="container mx-auto">
-    <div class="mb-4">
+    <div class="inline-flex w-full mb-4">
+      <!-- search input -->
       <input
         v-model="searchTerm"
         type="text"
         placeholder="search title | body"
         class="w-full p-2 bg-transparent border-b-2 border-gray-300 rounded focus:ring-0 focus:outline-none focus:border-blue-500 text-start"
       />
+      <Spinner class="ml-2" v-if="isTyping" />
     </div>
 
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <div v-for="post in filteredPosts" :key="post.id" class="p-3 rounded-md shadow-lg card-box">
-        <img
-          :src="getImageUrl(post.userId)"
-          alt="Post Image"
-          class="object-cover w-full h-48 rounded-md"
-        />
-        <h2 :title="post?.title" class="mt-2 text-xl font-semibold truncate">{{ post?.title }}</h2>
-        <p class="mt-2 text-gray-600 line-clamp-2">{{ post?.body }}</p>
+    <!-- posts -->
+    <div class="">
+      <!-- pending  -->
+      <div v-if="pending" class="loading-spinner">
+        <SkeletonPost />
       </div>
+
+      <!-- error  -->
+      <div v-if="error" class="error-message">
+        خطایی رخ داده است: {{ error.message }}
+      </div>
+
+      <!--  post ( render the posts if not pending or error) -->
+      <template v-if="!pending && !error">
+        <div
+          v-if="filteredPosts.length > 0"
+          class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+        >
+          <article
+            v-for="post in filteredPosts"
+            :key="post.id"
+            class="p-3 rounded-md shadow-lg card-box"
+          >
+            <img
+              :src="getImageUrl(post.userId)"
+              :alt="post?.title"
+              class="object-cover w-full h-48 rounded-md"
+            />
+            <h2
+              :title="post?.title"
+              v-html="highlightText(post?.title)"
+              class="mt-2 text-xl font-semibold truncate"
+            ></h2>
+            <p
+              :title="post?.body"
+              v-html="highlightText(post?.body)"
+              class="mt-2 text-gray-600 line-clamp-2"
+            ></p>
+          </article>
+        </div>
+        <div v-else class="w-full col-span-3 text-center">
+          <p class="w-full">not found article</p>
+        </div>
+      </template>
     </div>
   </div>
 </template>
