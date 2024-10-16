@@ -18,23 +18,19 @@ const delayedSearchTerm = ref<string>("");
 const isTyping = ref<boolean>(false);
 
 //fetch data
-const {
-  data: postsData,
-  pending: postsPending,
-  error: postsError,
-} = useFetch<Post[]>(`${runtimeConfig.public.apiBase}posts`, { server: true });
 
-const {
-  data: photosData,
-  pending: photosPending,
-  error: photosError,
-} = useFetch<any>(`${runtimeConfig.public.apiBase}photos`, { server: true });
+const { data, status } = await useAsyncData('data', async () => {
+  const [postsData, photosData] = await Promise.all([
+    $fetch<Post[]>(`${runtimeConfig.public.apiBase}posts`),
+    $fetch<any[]>(`${runtimeConfig.public.apiBase}photos`)
+  ])
 
-const pending = computed(() => postsPending.value || photosPending.value);
-const error = computed(() => postsError.value || photosError.value);
+  return { postsData, photosData }
+})
 
-posts.value = postsData.value || [];
-photos.value = photosData.value || [];
+
+posts.value = data.value?.postsData || [];
+photos.value = data.value?.photosData || [];
 
 const getImageUrl = (postId: number) => {
   const photo = photos.value.find((photo) => photo.id === postId);
@@ -46,7 +42,6 @@ const updateSearchTerm = debounce(() => {
   delayedSearchTerm.value = searchTerm.value;
   // set the search term in cookie
   useSearchText.value = delayedSearchTerm.value;
-  // localStorage.setItem("searchTerm", delayedSearchTerm.value);
 }, 1000);
 
 watch(searchTerm, () => {
@@ -92,17 +87,17 @@ const highlightText = (text: string) => {
     <!-- posts -->
     <div class="">
       <!-- pending  -->
-      <div v-if="pending" class="loading-spinner">
+      <div v-if="status === 'pending'" class="loading-spinner">
         <SkeletonPost />
       </div>
 
       <!-- error  -->
-      <div v-if="error" class="error-message">
-        خطایی رخ داده است: {{ error.message }}
+      <div v-else-if="status === 'error'" class="error-message">
+        خطایی رخ داده است
       </div>
 
       <!--  post ( render the posts if not pending or error) -->
-      <template v-if="!pending && !error">
+      <template v-else>
         <div
           v-if="filteredPosts.length > 0"
           class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
@@ -112,7 +107,8 @@ const highlightText = (text: string) => {
             :key="post.id"
             class="p-3 rounded-md shadow-lg card-box"
           >
-            <img
+            <NuxtImg
+              format="webp"
               :src="getImageUrl(post.userId)"
               :alt="post?.title"
               class="object-cover w-full h-48 rounded-md"

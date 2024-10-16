@@ -10,11 +10,12 @@ export default defineNuxtConfig({
       autoprefixer: {},
     },
   },
+
   runtimeConfig: {
     public:{
       apiBase: 'https://jsonplaceholder.typicode.com/'
     }
   },
- 
-  
+
+  modules: ['@nuxt/image'],
 })
