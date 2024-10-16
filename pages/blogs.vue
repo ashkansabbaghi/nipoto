@@ -22,22 +22,19 @@ const {
   data: postsData,
   pending: postsPending,
   error: postsError,
-} = useFetch<Post>(`${runtimeConfig.public.apiBase}posts` , {server: true});
+} = useFetch<Post[]>(`${runtimeConfig.public.apiBase}posts`, { server: true });
 
 const {
   data: photosData,
   pending: photosPending,
   error: photosError,
-} = useFetch<any>(`${runtimeConfig.public.apiBase}photos` , {server: true});
+} = useFetch<any>(`${runtimeConfig.public.apiBase}photos`, { server: true });
 
 const pending = computed(() => postsPending.value || photosPending.value);
 const error = computed(() => postsError.value || photosError.value);
 
 posts.value = postsData.value || [];
 photos.value = photosData.value || [];
-
-console.log(postsData.value , photosData.value);
-
 
 const getImageUrl = (postId: number) => {
   const photo = photos.value.find((photo) => photo.id === postId);
@@ -59,11 +56,7 @@ watch(searchTerm, () => {
 
 onMounted(() => {
   const savedSearchTerm = useSearchText.value;
-  console.log(savedSearchTerm);
-
-  if (savedSearchTerm) {
-    searchTerm.value = savedSearchTerm;
-  }
+  savedSearchTerm && (searchTerm.value = savedSearchTerm);
 });
 
 const filteredPosts = computed(() => {
